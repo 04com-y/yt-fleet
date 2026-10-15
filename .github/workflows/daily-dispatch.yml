@@ -1,0 +1,81 @@
+name: daily-dispatch
+on:
+  schedule:
+    - cron: "17 0 * * *"
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: "One channel slug to run now (empty = today's plan)"
+        default: ""
+      dry_run:
+        description: "Skip uploads"
+        default: "true"
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: fleet
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11", cache: pip }
+      - run: pip install -r requirements.txt
+      - id: plan
+        run: python -m control.plan_day --only "${{ inputs.channel }}" >> "$GITHUB_OUTPUT"
+
+  produce:
+    needs: plan
+    if: ${{ needs.plan.outputs.matrix != '{"include":[]}' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix: ${{ fromJson(needs.plan.outputs.matrix) }}
+    concurrency:
+      group: channel-${{ matrix.channel }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11", cache: pip }
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg espeak-ng
+      - run: pip install -r requirements.txt
+      - name: Run channel job
+        run: python -m engine.run --channel "${{ matrix.channel }}" --job long_and_shorts
+        env:
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+          YT_TOKENS_JSON: ${{ secrets.YT_TOKENS_JSON }}
+          YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: state-${{ matrix.channel }}
+          path: state/${{ matrix.channel }}/
+
+  commit-state:
+    needs: [plan, produce]
+    if: ${{ always() && needs.plan.outputs.matrix != '{"include":[]}' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { pattern: "state-*", path: artifacts }
+      - run: python -m control.merge_state artifacts
+      - run: |
+          git config user.name "fleet-bot"
+          git config user.email "fleet-bot@users.noreply.github.com"
+          git add state
+          git commit -m "state $(date -u +%F)" || echo "nothing to commit"
+          git pull --rebase && git push
