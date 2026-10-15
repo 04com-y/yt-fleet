@@ -1,0 +1,33 @@
+slug: inventos-es
+name: Inventos e Historia
+language: es
+niche: History of revolutionary inventions and discoveries
+audience: Curious Spanish-speaking viewers
+tier: B
+wave: 3
+status: active
+formats:
+- invention_story
+- how_it_changed_the_world
+- accidental_discovery
+visual_skin: editorial_light
+voice:
+  engine: kokoro
+  id: es_male_1
+  speed: 0.98
+cadence:
+  long_form_per_week: 1
+  derived_shorts_per_long: 3
+  standalone_shorts_per_week: 0
+  publish_slots_utc:
+  - '18:00'
+sources:
+  allow_domains:
+  - patentimages.storage.googleapis.com
+  - britannica.com
+rules:
+  banned_topics:
+  - weapons_instructions
+  - dangerous_experiments
+  require_original_value: true
+  min_sourced_claims: 3

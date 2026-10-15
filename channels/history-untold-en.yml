@@ -1,0 +1,35 @@
+slug: history-untold-en
+name: History Untold
+language: en
+niche: Documentary-style untold historical stories
+audience: History buffs and documentary fans
+tier: B
+wave: 2
+status: active
+formats:
+- narrative_case
+- historical_mystery
+- biography
+visual_skin: editorial_light
+voice:
+  engine: kokoro
+  id: bm_george
+  speed: 0.95
+cadence:
+  long_form_per_week: 1
+  derived_shorts_per_long: 3
+  standalone_shorts_per_week: 0
+  publish_slots_utc:
+  - '14:30'
+sources:
+  allow_domains:
+  - loc.gov
+  - archives.gov
+  - britannica.com
+rules:
+  banned_topics:
+  - hate_speech
+  - conspiracies
+  - modern_politics
+  require_original_value: true
+  min_sourced_claims: 3

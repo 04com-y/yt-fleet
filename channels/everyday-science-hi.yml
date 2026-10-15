@@ -1,0 +1,34 @@
+slug: everyday-science-hi
+name: Everyday Science Hindi
+language: hi
+niche: Everyday science questions and natural phenomena explained
+audience: Students and general audience in India
+tier: B
+wave: 3
+status: active
+formats:
+- why_it_happens
+- science_myth_busted
+- simple_experiment
+visual_skin: bold_vibrant
+voice:
+  engine: kokoro
+  id: hi_female_1
+  speed: 1.0
+cadence:
+  long_form_per_week: 1
+  derived_shorts_per_long: 3
+  standalone_shorts_per_week: 0
+  publish_slots_utc:
+  - '13:00'
+sources:
+  allow_domains:
+  - vigyanprasar.gov.in
+  - ncert.nic.in
+  - scientificamerican.com
+rules:
+  banned_topics:
+  - medical_treatments
+  - pseudoscience
+  require_original_value: true
+  min_sourced_claims: 3

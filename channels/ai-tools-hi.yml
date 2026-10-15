@@ -1,0 +1,36 @@
+slug: ai-tools-hi
+name: AI Tools Hindi
+language: hi
+niche: Practical AI applications and apps for Indian creators
+audience: Hindi-speaking tech enthusiasts and freelancers
+tier: B
+wave: 2
+status: active
+formats:
+- app_walkthrough
+- use_case_hindi
+- comparison
+visual_skin: bold_vibrant
+voice:
+  engine: kokoro
+  id: hi_male_1
+  speed: 1.0
+cadence:
+  long_form_per_week: 1
+  derived_shorts_per_long: 3
+  standalone_shorts_per_week: 0
+  publish_slots_utc:
+  - '15:30'
+sources:
+  allow_domains:
+  - github.com
+  - huggingface.co
+  - news.ycombinator.com
+rules:
+  banned_topics:
+  - medical
+  - legal
+  - financial_advice
+  - politics
+  require_original_value: true
+  min_sourced_claims: 3

@@ -1,0 +1,35 @@
+slug: business-cases-en
+name: Business Case Studies
+language: en
+niche: Rise and fall of well-known corporations and startups
+audience: Entrepreneurs and business students
+tier: B
+wave: 2
+status: active
+formats:
+- breakdown
+- post_mortem
+- strategy_analysis
+visual_skin: clean_dark
+voice:
+  engine: kokoro
+  id: am_adam
+  speed: 1.0
+cadence:
+  long_form_per_week: 1
+  derived_shorts_per_long: 3
+  standalone_shorts_per_week: 0
+  publish_slots_utc:
+  - '15:00'
+sources:
+  allow_domains:
+  - sec.gov
+  - bloomberg.com
+  - reuters.com
+rules:
+  banned_topics:
+  - stock_picking
+  - financial_advice
+  - crypto_pumps
+  require_original_value: true
+  min_sourced_claims: 3

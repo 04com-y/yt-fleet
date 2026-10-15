@@ -1,0 +1,36 @@
+slug: oss-spotlight-en
+name: Open Source Spotlight
+language: en
+niche: Tours of trending GitHub projects with code and demos
+audience: Software engineers and open source contributors
+tier: A
+wave: 1
+status: active
+formats:
+- project_tour
+- architecture_breakdown
+- cli_demo
+visual_skin: technical_mono
+voice:
+  engine: kokoro
+  id: am_michael
+  speed: 1.0
+cadence:
+  long_form_per_week: 1
+  derived_shorts_per_long: 3
+  standalone_shorts_per_week: 0
+  publish_slots_utc:
+  - '14:00'
+sources:
+  allow_domains:
+  - github.com
+  - news.ycombinator.com
+  - dev.to
+rules:
+  banned_topics:
+  - medical
+  - legal
+  - financial_advice
+  - politics
+  require_original_value: true
+  min_sourced_claims: 3

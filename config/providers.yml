@@ -1,0 +1,13 @@
+providers:
+  writer:
+    primary: gemini
+    model: gemini-2.5-flash
+    daily_budget: 15
+  critic:
+    primary: groq
+    model: llama-3.3-70b-versatile
+    daily_budget: 15
+  fallback:
+    primary: openrouter
+    model: mistralai/mistral-7b-instruct:free
+    daily_budget: 10

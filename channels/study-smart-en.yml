@@ -1,0 +1,34 @@
+slug: study-smart-en
+name: Study Smart
+language: en
+niche: Evidence-based study and cognitive productivity methods
+audience: University students and self-learners
+tier: B
+wave: 2
+status: active
+formats:
+- technique_guide
+- study_routine
+- research_summary
+visual_skin: editorial_light
+voice:
+  engine: kokoro
+  id: af_sarah
+  speed: 1.0
+cadence:
+  long_form_per_week: 1
+  derived_shorts_per_long: 3
+  standalone_shorts_per_week: 0
+  publish_slots_utc:
+  - '12:00'
+sources:
+  allow_domains:
+  - ncbi.nlm.nih.gov
+  - apa.org
+  - ed.gov
+rules:
+  banned_topics:
+  - medical_claims
+  - miracle_supplements
+  require_original_value: true
+  min_sourced_claims: 3

@@ -1,0 +1,9 @@
+pause: false
+dry_run_default: true
+max_parallel_channels: 3
+upload_bucket_daily_limit: 100
+llm_budget_daily_limit: 30
+qa:
+  min_sourced_claims: 3
+  max_silence_seconds: 2.5
+  audio_duration_tolerance_pct: 0.10

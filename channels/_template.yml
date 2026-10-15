@@ -1,0 +1,40 @@
+slug: ai-tools-en
+name: AI Tools Weekly
+language: en
+niche: Hands-on reviews and comparisons of new AI tools
+audience: Developers and tech professionals
+tier: A
+wave: 1
+status: active
+formats:
+- tool_demo
+- versus
+- top_n
+- myth_vs_fact
+visual_skin: clean_dark
+voice:
+  engine: kokoro
+  id: am_adam
+  speed: 1.0
+cadence:
+  long_form_per_week: 1
+  derived_shorts_per_long: 3
+  standalone_shorts_per_week: 0
+  publish_slots_utc:
+  - '13:30'
+  - '15:00'
+sources:
+  allow_domains:
+  - github.com
+  - arxiv.org
+  - huggingface.co
+  - news.ycombinator.com
+rules:
+  banned_topics:
+  - medical
+  - legal
+  - financial_advice
+  - politics
+  - minors
+  require_original_value: true
+  min_sourced_claims: 3

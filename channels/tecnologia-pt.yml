@@ -1,0 +1,35 @@
+slug: tecnologia-pt
+name: Tecnologia Hoje
+language: pt
+niche: Tech news, programming innovations, and AI in Portuguese
+audience: Brazilian and Portuguese tech professionals
+tier: B
+wave: 3
+status: active
+formats:
+- tech_update
+- tool_analysis
+- dev_trend
+visual_skin: clean_dark
+voice:
+  engine: kokoro
+  id: pt_male_1
+  speed: 1.0
+cadence:
+  long_form_per_week: 1
+  derived_shorts_per_long: 3
+  standalone_shorts_per_week: 0
+  publish_slots_utc:
+  - '19:00'
+sources:
+  allow_domains:
+  - github.com
+  - techcrunch.com
+  - arstechnica.com
+rules:
+  banned_topics:
+  - financial_advice
+  - crypto_pumps
+  - politics
+  require_original_value: true
+  min_sourced_claims: 3

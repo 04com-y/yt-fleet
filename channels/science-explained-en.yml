@@ -1,0 +1,35 @@
+slug: science-explained-en
+name: Science Explained
+language: en
+niche: Fundamental space, physics, and biology explained simply
+audience: Curious learners and students
+tier: B
+wave: 2
+status: active
+formats:
+- deep_dive
+- counter_intuitive_fact
+- timeline
+visual_skin: bold_vibrant
+voice:
+  engine: kokoro
+  id: am_adam
+  speed: 1.0
+cadence:
+  long_form_per_week: 1
+  derived_shorts_per_long: 3
+  standalone_shorts_per_week: 0
+  publish_slots_utc:
+  - '13:00'
+sources:
+  allow_domains:
+  - nasa.gov
+  - nature.com
+  - arxiv.org
+rules:
+  banned_topics:
+  - medical_advice
+  - pseudoscience
+  - politics
+  require_original_value: true
+  min_sourced_claims: 3

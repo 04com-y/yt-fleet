@@ -1,0 +1,35 @@
+slug: word-origins-en
+name: Word Origins & Etymology
+language: en
+niche: Linguistics, strange phrase origins, and etymology
+audience: Language enthusiasts and trivia lovers
+tier: B
+wave: 2
+status: active
+formats:
+- word_history
+- phrase_origin
+- language_evolution
+visual_skin: editorial_light
+voice:
+  engine: kokoro
+  id: bm_george
+  speed: 0.98
+cadence:
+  long_form_per_week: 1
+  derived_shorts_per_long: 3
+  standalone_shorts_per_week: 0
+  publish_slots_utc:
+  - '14:00'
+sources:
+  allow_domains:
+  - etymonline.com
+  - oed.com
+  - merriam-webster.com
+rules:
+  banned_topics:
+  - slurs
+  - hate_speech
+  - offensive_content
+  require_original_value: true
+  min_sourced_claims: 3

@@ -1,0 +1,23 @@
+schedule:
+  monday:
+    - ai-tools-en
+    - interview-prep-hi
+    - dev-tips-en
+  tuesday:
+    - oss-spotlight-en
+    - science-explained-en
+  wednesday:
+    - history-untold-en
+    - study-smart-en
+  thursday:
+    - business-cases-en
+    - ai-tools-hi
+    - word-origins-en
+  friday:
+    - space-news-hi
+    - everyday-science-hi
+  saturday:
+    - mundo-datos-es
+    - inventos-es
+  sunday:
+    - tecnologia-pt

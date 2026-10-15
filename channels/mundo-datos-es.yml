@@ -1,0 +1,34 @@
+slug: mundo-datos-es
+name: Mundo Datos
+language: es
+niche: World geography, curious statistics, and global culture
+audience: Spanish-speaking global knowledge seekers
+tier: B
+wave: 3
+status: active
+formats:
+- geography_breakdown
+- surprising_stats
+- map_comparison
+visual_skin: clean_dark
+voice:
+  engine: kokoro
+  id: es_male_1
+  speed: 1.0
+cadence:
+  long_form_per_week: 1
+  derived_shorts_per_long: 3
+  standalone_shorts_per_week: 0
+  publish_slots_utc:
+  - '17:00'
+sources:
+  allow_domains:
+  - un.org
+  - worldbank.org
+  - cia.gov
+rules:
+  banned_topics:
+  - political_debates
+  - territorial_disputes
+  require_original_value: true
+  min_sourced_claims: 3
