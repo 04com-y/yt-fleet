@@ -10,7 +10,7 @@ async def _synthesize_edge_voice(text: str, voice: str, output_path: str):
     await communicate.save(output_path)
 
 def synthesize_audio(channel_config: Dict[str, Any], script_data: Dict[str, Any], output_path: str = "audio_output.mp3") -> str:
-    """Main voiceover generation pipeline expected by the orchestrator."""
+    """Main voiceover generation pipeline expected by engine/run.py."""
     voice = channel_config.get("voice", "en-US-JennyNeural")
     full_text = script_data.get("body", "")
     
