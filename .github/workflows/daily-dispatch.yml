@@ -1,62 +1,73 @@
-name: daily-dispatch
+name: Daily Dispatch
+
 on:
   schedule:
-    - cron: "17 0 * * *"
+    # Runs daily at 00:00 UTC (adjust as needed)
+    - cron: '0 0 * * *'
   workflow_dispatch:
     inputs:
-      channel:
-        description: "Channel slug (e.g. ai-tools-en)"
-        default: "ai-tools-en"
+      dry_run:
+        description: 'Run in dry-run mode (do not upload to YouTube)'
+        required: true
+        type: boolean
+        default: true
       job:
-        description: "Select production format"
+        description: 'Job type to execute'
+        required: true
         type: choice
-        default: "shorts_only"
         options:
           - shorts_only
-          - long_only
-          - long_and_shorts
-      dry_run:
-        description: "Skip uploads"
-        default: "true"
-
-permissions:
-  contents: write
-  issues: write
-
-concurrency:
-  group: fleet
-  cancel-in-progress: false
+          - full_pipeline
+        default: shorts_only
 
 jobs:
-  produce:
+  dispatch:
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        channel:
+          - ai-tools-en
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
-          cache: pip
-      - name: Install system dependencies & fonts
-        run: sudo apt-get update && sudo apt-get install -y ffmpeg espeak-ng fonts-dejavu-core
-      - name: Install Python requirements
-        run: pip install -r requirements.txt
-      - name: Run channel job
-        run: python -m engine.run --channel "${{ inputs.channel || 'ai-tools-en' }}" --job "${{ inputs.job || 'shorts_only' }}"
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install System Dependencies (FFmpeg & Fonts)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg fonts-dejavu-core
+
+      - name: Install Python Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+      - name: Run Engine Dispatch
         env:
-          DRY_RUN: ${{ inputs.dry_run || 'true' }}
+          DRY_RUN: ${{ inputs.dry_run != '' && inputs.dry_run || 'true' }}
           YT_TOKENS_JSON: ${{ secrets.YT_TOKENS_JSON }}
           YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
           YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           PIXABAY_API_KEY: ${{ secrets.PIXABAY_API_KEY }}
-      - name: Upload Generated Videos as Artifacts
+        run: |
+          python -m engine.run --channel "${{ matrix.channel }}" --job "${{ inputs.job || 'shorts_only' }}"
+
+      - name: Upload Generated Videos
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: videos-${{ inputs.channel || 'ai-tools-en' }}
+          name: videos-${{ matrix.channel }}
           path: |
-            *.mp4
-            *.mp3
-            *.srt
+            **/*.mp4
+            **/*.mp3
+            **/*.srt
+          if-no-files-found: warn
