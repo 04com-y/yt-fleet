@@ -9,8 +9,8 @@ async def _synthesize_edge_voice(text: str, voice: str, output_path: str):
     communicate = edge_tts.Communicate(text, voice, rate="+8%")
     await communicate.save(output_path)
 
-def generate_voiceover(channel_config: Dict[str, Any], script_data: Dict[str, Any], output_path: str = "audio_output.mp3") -> str:
-    """Main voiceover generation pipeline."""
+def synthesize_audio(channel_config: Dict[str, Any], script_data: Dict[str, Any], output_path: str = "audio_output.mp3") -> str:
+    """Main voiceover generation pipeline expected by the orchestrator."""
     voice = channel_config.get("voice", "en-US-JennyNeural")
     full_text = script_data.get("body", "")
     
@@ -28,3 +28,6 @@ def generate_voiceover(channel_config: Dict[str, Any], script_data: Dict[str, An
         os.system(cmd)
 
     return output_path
+
+# Alias so both function names work interchangeably
+generate_voiceover = synthesize_audio
