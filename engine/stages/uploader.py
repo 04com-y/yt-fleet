@@ -64,14 +64,19 @@ def _upload_single_video(youtube, video_path: str, title: str, description: str,
     request = youtube.videos().insert(part="snippet,status", body=body, media_body=media)
 
     response = None
-    while response is None:
-        status, response = request.next_chunk()
-        if status:
-            print(f"[uploader] Upload progress: {int(status.progress() * 100)}%")
-
-    video_id = response.get("id")
-    print(f"[uploader] Upload success! Video ID: {video_id}")
-    return video_id
+    try:
+        while response is None:
+            status, response = request.next_chunk()
+            if status:
+                print(f"[uploader] Upload progress: {int(status.progress() * 100)}%")
+        video_id = response.get("id")
+        print(f"[uploader] Upload success! Video ID: {video_id}")
+        return video_id
+    except Exception as e:
+        if "uploadLimitExceeded" in str(e):
+            print(f"[uploader] Daily YouTube upload quota reached for this channel! Saving video locally.")
+            return "QUOTA_PAUSED_24H"
+        raise e
 
 def upload_fleet_videos(channel_config: Dict[str, Any], long_video: Dict[str, Any], shorts: List[Dict[str, Any]], dry_run: bool = False) -> Dict[str, Any]:
     """Matches the exact signature called by engine/run.py."""
