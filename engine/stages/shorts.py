@@ -1,7 +1,6 @@
 import os
 import sys
 import json
-import math
 import random
 import requests
 import subprocess
@@ -22,10 +21,10 @@ def _get_audio_duration(audio_path: str) -> float:
         return 10.0
 
 def _generate_timed_srt(srt_path: str, text: str, total_duration: float):
-    """Generates a valid SRT file with distributed word blocks for kinetic subtitles."""
+    """Generates a guaranteed valid SRT file with word blocks."""
     words = text.split()
     if not words:
-        words = ["Technical", "Analysis", "and", "Insights"]
+        words = ["KEY", "TECHNICAL", "INSIGHTS", "AND", "ANALYSIS"]
 
     chunk_size = 3
     chunks = [" ".join(words[i:i + chunk_size]) for i in range(0, len(words), chunk_size)]
@@ -52,7 +51,7 @@ def _generate_timed_srt(srt_path: str, text: str, total_duration: float):
             f.write(f"{chunk.upper()}\n\n")
 
 def fetch_pixabay_broll(query: str, count: int = 4) -> List[str]:
-    """Downloads vertical/horizontal HD stock clips from Pixabay."""
+    """Downloads HD stock footage from Pixabay."""
     api_key = os.environ.get("PIXABAY_API_KEY")
     clips = []
     
@@ -78,7 +77,7 @@ def fetch_pixabay_broll(query: str, count: int = 4) -> List[str]:
         except Exception as e:
             print(f"[shorts] Pixabay download failed: {e}")
 
-    # Fallback to test card generator if downloads are empty
+    # Fallback solid background if API returns no clips
     if not clips:
         fallback_clip = "clip_fallback.mp4"
         cmd = [
@@ -93,12 +92,12 @@ def fetch_pixabay_broll(query: str, count: int = 4) -> List[str]:
     return clips
 
 def build_montage_short(idx: int, script_text: str, audio_path: str, channel_title: str, query: str = "technology") -> str:
-    """Assembles full 9:16 vertical short with multi-clip montage, branding, and burning subtitles."""
+    """Assembles 9:16 vertical short with multi-clip montage and subtitles."""
     duration = _get_audio_duration(audio_path)
     output_mp4 = f"output_short_{idx}.mp4"
     srt_path = os.path.abspath(f"short_{idx}.srt")
 
-    # 1. Generate subtitle file and ensure it exists on disk
+    # 1. Create and flush SRT file on disk
     _generate_timed_srt(srt_path, script_text, duration)
 
     # 2. Download footage
@@ -126,16 +125,20 @@ def build_montage_short(idx: int, script_text: str, audio_path: str, channel_tit
         for c in standardized_clips:
             f.write(f"file '{os.path.abspath(c)}'\n")
 
-    # 5. Escape paths for FFmpeg libass filter syntax
-    escaped_srt = srt_path.replace("\\", "/").replace(":", "\\:")
-
+    # 5. Build filter string with safe relative subtitle filename
+    rel_srt = f"short_{idx}.srt"
     vf_filters = [
         "eq=contrast=1.06:brightness=-0.03:saturation=1.12",
         "drawbox=y=0:color=black@0.30:width=iw:height=ih:t=fill",
         f"drawtext=text='⚡ {channel_title.upper()}':fontcolor=0x38bdf8:fontsize=36:x=(w-text_w)/2:y=180:box=1:boxcolor=0x0f172a@0.9:boxborderw=14",
-        f"drawtext=text='INSIGHT #{idx}':fontcolor=white:fontsize=50:x=(w-text_w)/2:y=300:box=1:boxcolor=0x1e293b@0.9:boxborderw=18",
-        f"subtitles='{escaped_srt}':force_style='FontName=DejaVu Sans,FontSize=20,Bold=1,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BackColour=&H90000000,BorderStyle=3,Outline=3,Shadow=2,Alignment=2,MarginV=380'"
+        f"drawtext=text='INSIGHT #{idx}':fontcolor=white:fontsize=50:x=(w-text_w)/2:y=300:box=1:boxcolor=0x1e293b@0.9:boxborderw=18"
     ]
+
+    # Only attach subtitles filter if file exists and has content
+    if os.path.exists(srt_path) and os.path.getsize(srt_path) > 0:
+        vf_filters.append(
+            f"subtitles={rel_srt}:force_style='FontName=DejaVu Sans,FontSize=20,Bold=1,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BackColour=&H90000000,BorderStyle=3,Outline=3,Shadow=2,Alignment=2,MarginV=380'"
+        )
 
     cmd = [
         "ffmpeg", "-y",
@@ -164,12 +167,10 @@ def cut_derived_shorts(channel_config: Dict[str, Any], script_data: Dict[str, An
         seg_text = seg.get("text", script_data.get("body", ""))
         audio_file = f"short_audio_{idx}.mp3"
 
-        # Check if voice stage outputted dedicated audio or fallback
         if not os.path.exists(audio_file):
             if os.path.exists("audio_output.mp3"):
                 audio_file = "audio_output.mp3"
             else:
-                # Synthesize fallback silent/beep tone if no audio generated
                 subprocess.run([
                     "ffmpeg", "-y", "-f", "lavfi", "-i", "anoisesrc=d=8:c=pink:r=24000:a=0.02",
                     "-c:a", "libmp3lame", "-b:a", "128k", audio_file
