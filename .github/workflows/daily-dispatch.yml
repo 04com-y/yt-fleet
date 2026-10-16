@@ -5,8 +5,8 @@ on:
   workflow_dispatch:
     inputs:
       channel:
-        description: "One channel slug to run now (empty = today's plan)"
-        default: ""
+        description: "Channel slug (e.g. ai-tools-en)"
+        default: "ai-tools-en"
       job:
         description: "Select production format"
         type: choice
@@ -17,7 +17,7 @@ on:
           - long_and_shorts
       dry_run:
         description: "Skip uploads"
-        default: "false"
+        default: "true"
 
 permissions:
   contents: write
@@ -28,32 +28,35 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  plan:
-    runs-on: ubuntu-latest
-    outputs:
-      matrix: ${{ steps.plan.outputs.matrix }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with: { python-version: "3.11", cache: pip }
-      - run: pip install -r requirements.txt
-      - id: plan
-        run: python -m control.plan_day --only "${{ inputs.channel }}" >> "$GITHUB_OUTPUT"
-
   produce:
-    needs: plan
-    if: ${{ needs.plan.outputs.matrix != '{"include":[]}' }}
     runs-on: ubuntu-latest
     timeout-minutes: 120
-    strategy:
-      fail-fast: false
-      max-parallel: 3
-      matrix: ${{ fromJson(needs.plan.outputs.matrix) }}
-    concurrency:
-      group: channel-${{ matrix.channel }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
-        with: { python-version: "3.11", cache: pip }
+        with:
+          python-version: "3.11"
+          cache: pip
       - name: Install system dependencies & fonts
-        run: sudo apt-get update && sudo apt-get install -y
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg espeak-ng fonts-dejavu-core
+      - name: Install Python requirements
+        run: pip install -r requirements.txt
+      - name: Run channel job
+        run: python -m engine.run --channel "${{ inputs.channel || 'ai-tools-en' }}" --job "${{ inputs.job || 'shorts_only' }}"
+        env:
+          DRY_RUN: ${{ inputs.dry_run || 'true' }}
+          YT_TOKENS_JSON: ${{ secrets.YT_TOKENS_JSON }}
+          YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          PIXABAY_API_KEY: ${{ secrets.PIXABAY_API_KEY }}
+      - name: Upload Generated Videos as Artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: videos-${{ inputs.channel || 'ai-tools-en' }}
+          path: |
+            *.mp4
+            *.mp3
+            *.srt
