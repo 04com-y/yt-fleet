@@ -1,12 +1,9 @@
 import os
+import random
+import requests
 import asyncio
-import textwrap
 import subprocess
 from typing import Dict, Any, List
-from PIL import Image, ImageDraw, ImageFont
-
-FONT_PATH = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
-FONT_REGULAR_PATH = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
 
 VOICE_MAP = {
     "en": "en-US-JennyNeural",
@@ -17,143 +14,212 @@ VOICE_MAP = {
     "pt": "pt-BR-FranciscaNeural"
 }
 
-def load_font(font_path: str, size: int) -> ImageFont.ImageFont:
-    if os.path.exists(font_path):
-        return ImageFont.truetype(font_path, size)
-    return ImageFont.load_default()
+# Curated queries for cinematic tech & AI B-roll
+CINEMATIC_QUERIES = [
+    "artificial intelligence",
+    "technology",
+    "matrix code",
+    "cyberpunk",
+    "computer server",
+    "coding"
+]
 
-def draw_wrapped_text(draw: ImageDraw.ImageDraw, text: str, font: ImageFont.ImageFont, 
-                      start_pos: tuple, max_width: int, fill: tuple, line_spacing: int = 14) -> int:
-    x, y = start_pos
-    avg_char_w = max(int(font.size * 0.52), 1) if hasattr(font, 'size') else 10
-    wrap_chars = max(int(max_width / avg_char_w), 12)
-    
-    for line in textwrap.wrap(text, width=wrap_chars):
-        draw.text((x, y), line, font=font, fill=fill)
-        bbox = draw.textbbox((x, y), line, font=font)
-        y += (bbox[3] - bbox[1]) + line_spacing
-    return y
+def fetch_pixabay_videos(query: str, api_key: str, count: int = 4) -> List[str]:
+    """Downloads real high-definition B-roll footage clips using Pixabay API."""
+    downloaded_files = []
+    if not api_key:
+        print("[shorts] PIXABAY_API_KEY missing in environment.")
+        return downloaded_files
 
-def synthesize_short_audio(text: str, lang: str, out_path: str):
+    url = f"https://pixabay.com/api/videos/?key={api_key}&q={requests.utils.quote(query)}&per_page=15"
+
+    try:
+        r = requests.get(url, timeout=15)
+        if r.status_code == 200:
+            hits = r.json().get("hits", [])
+            random.shuffle(hits)
+
+            for item in hits:
+                if len(downloaded_files) >= count:
+                    break
+                videos = item.get("videos", {})
+                # Prioritize medium/large progressive MP4 streams
+                target_video = videos.get("medium", {}) or videos.get("large", {}) or videos.get("small", {})
+                v_url = target_video.get("url")
+
+                if v_url:
+                    clip_name = f"clip_{len(downloaded_files)}_{random.randint(100, 999)}.mp4"
+                    print(f"[shorts] Downloading footage for '{query}': {clip_name}...")
+                    c_data = requests.get(v_url, timeout=35).content
+                    with open(clip_name, "wb") as f_out:
+                        f_out.write(c_data)
+                    downloaded_files.append(clip_name)
+    except Exception as e:
+        print(f"[shorts] Pixabay download failed: {e}")
+
+    return downloaded_files
+
+def synthesize_audio_and_srt(text: str, lang: str, audio_path: str, srt_path: str):
+    """Synthesizes soft neural female voice with synchronized word-level captions."""
     clean_code = lang.split("-")[0].lower() if lang else "en"
     voice = VOICE_MAP.get(clean_code, "en-US-JennyNeural")
-    raw_path = f"raw_{out_path}"
-    
+    raw_audio = f"raw_{audio_path}"
+
+    import edge_tts
+    async def _gen():
+        communicate = edge_tts.Communicate(text, voice, rate="+5%", pitch="+0Hz")
+        sub_maker = edge_tts.SubMaker()
+        with open(raw_audio, "wb") as f_audio:
+            async for chunk in communicate.stream():
+                if chunk["type"] == "audio":
+                    f_audio.write(chunk["data"])
+                elif chunk["type"] == "WordBoundary":
+                    sub_maker.feed(chunk)
+        
+        with open(srt_path, "w", encoding="utf-8") as f_sub:
+            f_sub.write(sub_maker.get_srt())
+
+    asyncio.run(_gen())
+
+    # Vocal clarity filtering + subtle warm background noise bed
+    filter_complex = (
+        "[0:a]highpass=f=80,treble=g=2.5,volume=1.2[v];"
+        "[1:a]volume=0.14[bg];"
+        "[v][bg]amix=inputs=2:duration=first:dropout_transition=2[out]"
+    )
+    cmd = [
+        "ffmpeg", "-y", "-i", raw_audio,
+        "-f", "lavfi", "-i", "anoisesrc=d=60:c=pink:r=44100:a=0.012, lowpass=f=400",
+        "-filter_complex", filter_complex,
+        "-map", "[out]", "-c:a", "libmp3lame", "-b:a", "192k", audio_path
+    ]
+    subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+    if os.path.exists(raw_audio):
+        os.remove(raw_audio)
+
+def get_duration(file_path: str) -> float:
     try:
-        import edge_tts
-        async def _gen():
-            # +4% rate keeps speech clear and engaging without clipping
-            c = edge_tts.Communicate(text, voice, rate="+4%", pitch="+0Hz")
-            await c.save(raw_path)
-        asyncio.run(_gen())
-
-        # Layer subtle ambient acoustic noise bed under voice
-        filter_complex = (
-            "[0:a]highpass=f=80,treble=g=2.5,volume=1.2[v];"
-            "[1:a]volume=0.14[bg];"
-            "[v][bg]amix=inputs=2:duration=first:dropout_transition=2[out]"
-        )
         cmd = [
-            "ffmpeg", "-y", "-i", raw_path,
-            "-f", "lavfi", "-i", "anoisesrc=d=60:c=pink:r=44100:a=0.012, lowpass=f=400",
-            "-filter_complex", filter_complex,
-            "-map", "[out]", "-c:a", "libmp3lame", "-b:a", "192k", out_path
+            "ffprobe", "-v", "error", "-show_entries", "format=duration",
+            "-of", "default=noprint_wrappers=1:nokey=1", file_path
         ]
-        subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
-        if os.path.exists(raw_path):
-            os.remove(raw_path)
-    except Exception as e:
-        print(f"[shorts] TTS fallback for {out_path} ({e})")
-        subprocess.run(f'ffmpeg -y -f lavfi -i "sine=frequency=480:duration=15" -c:a aac {out_path}', shell=True, check=True)
+        res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=True)
+        return float(res.stdout.strip())
+    except Exception:
+        return 15.0
 
-def create_gradient_canvas(width: int, height: int, top_color: tuple, bottom_color: tuple) -> Image.Image:
-    """Generates a deep vertical background gradient to replace flat blocks."""
-    base = Image.new("RGB", (width, height), top_color)
-    top_r, top_g, top_b = top_color
-    bot_r, bot_g, bot_b = bottom_color
-    
-    draw = ImageDraw.Draw(base)
-    for y in range(height):
-        ratio = y / float(height)
-        r = int(top_r + (bot_r - top_r) * ratio)
-        g = int(top_g + (bot_g - top_g) * ratio)
-        b = int(top_b + (bot_b - top_b) * ratio)
-        draw.line([(0, y), (width, y)], fill=(r, g, b))
-    return base
+def build_montage_short(video_path: str, clips: List[str], audio_path: str, srt_path: str, title: str, channel_name: str, total_duration: float):
+    """
+    Assembles real footage cuts into a 9:16 vertical short:
+    - Crops & fills 1080x1920
+    - Applies cinematic color grading
+    - Burns bold centered subtitles
+    """
+    clean_title = title.replace("'", "").replace('"', '').upper()
+    clean_channel = channel_name.replace("'", "").replace('"', '').upper()
+
+    style = (
+        "FontName=DejaVu Sans,FontSize=20,Bold=1,"
+        "PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BackColour=&H90000000,"
+        "BorderStyle=3,Outline=3,Shadow=2,Alignment=2,MarginV=380"
+    )
+
+    if clips and len(clips) > 0:
+        segment_duration = max(total_duration / len(clips), 2.5)
+        clip_segments = []
+
+        for i, clip in enumerate(clips):
+            seg_out = f"seg_{i}.mp4"
+            # Crop to vertical 1080x1920 seamlessly
+            scale_cmd = [
+                "ffmpeg", "-y", "-i", clip,
+                "-t", str(segment_duration),
+                "-vf", "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,fps=30",
+                "-c:v", "libx264", "-preset", "ultrafast", "-an", seg_out
+            ]
+            subprocess.run(scale_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+            clip_segments.append(seg_out)
+
+        concat_list = "clips_concat.txt"
+        with open(concat_list, "w") as f:
+            for seg in clip_segments:
+                f.write(f"file '{seg}'\n")
+
+        base_video_input = ["-f", "concat", "-safe", "0", "-i", concat_list]
+    else:
+        # Fallback dynamic procedural visual if API returned no files
+        base_video_input = ["-f", "lavfi", "-i", "cellauto=s=1080x1920:r=30,format=yuv420p,hue=s=0.6:h=215"]
+
+    vf = (
+        f"eq=contrast=1.06:brightness=-0.03:saturation=1.12,"
+        f"drawbox=y=0:color=black@0.30:width=iw:height=ih:t=fill,"
+        f"drawtext=text='⚡ {clean_channel}':fontcolor=0x38bdf8:fontsize=36:x=(w-text_w)/2:y=180:box=1:boxcolor=0x0f172a@0.9:boxborderw=14,"
+        f"drawtext=text='{clean_title[:32]}':fontcolor=white:fontsize=50:x=(w-text_w)/2:y=300:box=1:boxcolor=0x1e293b@0.9:boxborderw=18,"
+        f"subtitles={srt_path}:force_style='{style}'"
+    )
+
+    cmd = [
+        "ffmpeg", "-y",
+        *base_video_input,
+        "-i", audio_path,
+        "-t", str(total_duration),
+        "-vf", vf,
+        "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p",
+        "-c:a", "aac", "-b:a", "192k",
+        video_path
+    ]
+    subprocess.run(cmd, check=True)
+
+    # Cleanup temporary segment files
+    if clips:
+        for i in range(len(clips)):
+            seg_file = f"seg_{i}.mp4"
+            if os.path.exists(seg_file):
+                os.remove(seg_file)
+        if os.path.exists("clips_concat.txt"):
+            os.remove("clips_concat.txt")
 
 def generate_shorts(channel_config: Dict[str, Any], script_data: Dict[str, Any], *args, **kwargs) -> List[Dict[str, Any]]:
     channel_name = channel_config.get("name", "Channel")
     lang = channel_config.get("language", "en")
+    pixabay_key = os.environ.get("PIXABAY_API_KEY", "")
     scenes = script_data.get("scenes", [])
     shorts_output = []
 
     target_scenes = scenes[:3] if len(scenes) >= 3 else scenes
 
-    font_badge = load_font(FONT_PATH, 34)
-    font_title = load_font(FONT_PATH, 58)
-    font_body = load_font(FONT_REGULAR_PATH, 44)
-    font_cta = load_font(FONT_PATH, 36)
-
     for idx, scene in enumerate(target_scenes, 1):
         short_video_path = f"output_short_{idx}.mp4"
-        short_slide_path = f"short_slide_{idx}.png"
         short_audio_path = f"short_audio_{idx}.mp3"
+        short_srt_path = f"short_{idx}.srt"
 
         scene_title = scene.get("title", f"Insight #{idx}")
         scene_narration = scene.get("narration", "").strip()
+        spoken_text = f"{scene_title}. {scene_narration} Follow for daily deep dives."
 
-        spoken_text = (
-            f"{scene_title}. "
-            f"{scene_narration} "
-            f"Follow for more."
+        # 1. Synthesize soft female voice + word-synced subtitles
+        synthesize_audio_and_srt(spoken_text, lang, short_audio_path, short_srt_path)
+        duration = get_duration(short_audio_path)
+
+        # 2. Fetch real HD tech B-roll clips from Pixabay
+        query = CINEMATIC_QUERIES[idx % len(CINEMATIC_QUERIES)]
+        broll_clips = fetch_pixabay_videos(query, pixabay_key, count=4)
+
+        # 3. Assemble dynamic multi-clip video montage
+        build_montage_short(
+            video_path=short_video_path,
+            clips=broll_clips,
+            audio_path=short_audio_path,
+            srt_path=short_srt_path,
+            title=scene_title,
+            channel_name=channel_name,
+            total_duration=duration
         )
 
-        synthesize_short_audio(spoken_text, lang, short_audio_path)
-
-        # 1. Gradient Canvas (Dark Navy to Midnight Indigo)
-        img = create_gradient_canvas(1080, 1920, (15, 23, 42), (8, 11, 22))
-        draw = ImageDraw.Draw(img)
-
-        # 2. Glowing Accent Border
-        draw.rectangle([(25, 25), (1055, 1895)], outline=(56, 189, 248), width=4)
-
-        # 3. Top Channel Badge
-        draw.rounded_rectangle([(70, 90), (450, 165)], radius=35, fill=(30, 41, 59), outline=(56, 189, 248), width=2)
-        draw.text((105, 110), f"⚡ {channel_name.upper()}", font=font_badge, fill=(56, 189, 248))
-
-        # 4. Large Bold Hook Title (Centered with highlight underline)
-        curr_y = draw_wrapped_text(draw, scene_title.upper(), font_title, (70, 310), max_width=940, fill=(255, 255, 255), line_spacing=16)
-        draw.line([(70, curr_y + 20), (520, curr_y + 20)], fill=(244, 63, 94), width=6)  # Coral red line
-        curr_y += 75
-
-        # 5. Core Content Card
-        card_top = curr_y
-        card_bottom = min(curr_y + 760, 1540)
-        draw.rounded_rectangle([(60, card_top), (1020, card_bottom)], radius=24, fill=(22, 32, 53), outline=(51, 65, 85), width=2)
-
-        # Highlight bullet tag
-        draw.rounded_rectangle([(90, card_top + 45), (280, card_top + 105)], radius=15, fill=(15, 23, 42))
-        draw.text((115, card_top + 60), "THE BREAKTHROUGH", font=load_font(FONT_PATH, 24), fill=(148, 163, 184))
-
-        # Narration Text inside Card
-        draw_wrapped_text(draw, scene_narration, font_body, (95, card_top + 140), max_width=830, fill=(241, 245, 249), line_spacing=20)
-
-        # 6. Bottom Sticky CTA
-        draw.rounded_rectangle([(60, 1640), (1020, 1780)], radius=20, fill=(15, 23, 42), outline=(56, 189, 248), width=3)
-        draw.text((160, 1690), "TAP FOLLOW FOR DAILY INSIGHTS", font=font_cta, fill=(56, 189, 248))
-
-        img.save(short_slide_path, "PNG")
-
-        # 7. Render Video with subtle zoom effect
-        cmd = [
-            "ffmpeg", "-y", "-loop", "1", "-i", short_slide_path,
-            "-i", short_audio_path,
-            "-vf", "scale=1080:1920,format=yuv420p",
-            "-c:v", "libx264", "-tune", "stillimage",
-            "-preset", "ultrafast",
-            "-c:a", "aac", "-b:a", "192k", "-shortest", short_video_path
-        ]
-        subprocess.run(cmd, check=True)
+        # Clean raw downloads
+        for clip in broll_clips:
+            if os.path.exists(clip):
+                os.remove(clip)
 
         shorts_output.append({
             "short_index": idx,
