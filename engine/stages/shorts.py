@@ -1,10 +1,10 @@
 import os
 import sys
 import json
+import urllib.parse
 import requests
 import subprocess
 from typing import Dict, Any, List
-from duckduckgo_search import DDGS
 
 def _get_audio_duration(audio_path: str) -> float:
     """Measures precise audio length in seconds using ffprobe."""
@@ -27,7 +27,7 @@ def _generate_kinetic_srt(srt_path: str, text: str, total_duration: float):
     """Generates rapid 2-word subtitle cards styled for mobile retention."""
     words = text.replace('"', '').replace("'", "").replace("\n", " ").split()
     if not words:
-        words = ["BREAKING", "TEXH", "UPDATE", "TODAY"]
+        words = ["TEXH", "NEWS", "BREAKING", "TODAY"]
 
     chunk_size = 2
     chunks = [" ".join(words[i:i + chunk_size]) for i in range(0, len(words), chunk_size)]
@@ -55,32 +55,54 @@ def _generate_kinetic_srt(srt_path: str, text: str, total_duration: float):
     print(f"[shorts] Kinetic SRT created at: {srt_path} ({chunk_count} word-cards)")
 
 def fetch_real_scene_image(query: str, scene_idx: int) -> str:
-    """Downloads authentic news/leak photo for the exact scene query."""
-    headers = {"User-Agent": "Mozilla/5.0"}
+    """Downloads authentic tech imagery using multi-source fallbacks (Wikimedia & Unsplash)."""
+    headers = {"User-Agent": "TexhNewsBot/1.0 (contact@texhnews.local) Mozilla/5.0"}
     out_file = os.path.abspath(f"scene_{scene_idx}.jpg")
+    cleaned_query = query.replace("leak", "").replace("render", "").strip()
 
-    print(f"[shorts] Searching web image for scene {scene_idx}: '{query}'")
+    # Source 1: Wikimedia Commons API (Never blocked on GitHub Actions)
     try:
-        ddgs = DDGS()
-        results = list(ddgs.images(query, max_results=6))
-        for item in results:
-            img_url = item.get("image")
-            if not img_url:
-                continue
-            try:
-                r = requests.get(img_url, headers=headers, timeout=8)
-                if r.status_code == 200 and len(r.content) > 15000:
-                    with open(out_file, "wb") as f:
-                        f.write(r.content)
-                    print(f"[shorts] Downloaded valid photo: {out_file} ({len(r.content)} bytes)")
-                    return out_file
-            except Exception:
-                continue
+        wiki_url = (
+            f"https://commons.wikimedia.org/w/api.php?action=query&generator=search"
+            f"&gsrsearch={urllib.parse.quote(cleaned_query)}&gsrnamespace=6&gsrlimit=3"
+            f"&prop=imageinfo&iiprop=url&iiurlwidth=1280&format=json"
+        )
+        r = requests.get(wiki_url, headers=headers, timeout=6)
+        if r.status_code == 200:
+            pages = r.json().get("query", {}).get("pages", {})
+            for pid, pdata in pages.items():
+                imageinfo = pdata.get("imageinfo", [])
+                if imageinfo:
+                    img_url = imageinfo[0].get("thumburl") or imageinfo[0].get("url")
+                    if img_url and not img_url.endswith(".svg"):
+                        img_res = requests.get(img_url, headers=headers, timeout=8)
+                        if img_res.status_code == 200 and len(img_res.content) > 10000:
+                            with open(out_file, "wb") as f:
+                                f.write(img_res.content)
+                            print(f"[shorts] Downloaded Wikimedia image for scene {scene_idx} ({len(img_res.content)} bytes)")
+                            return out_file
     except Exception as e:
-        print(f"[shorts] DuckDuckGo search error for '{query}': {e}")
+        print(f"[shorts] Wikimedia lookup error: {e}")
 
-    # Solid modern cyber-canvas fallback if web image fails
-    print(f"[shorts] Generating high-tech procedural frame for scene {scene_idx}...")
+    # Source 2: Curated Direct Hardware Image Feed
+    try:
+        curated_urls = [
+            "https://images.unsplash.com/photo-1591799264318-7e6ef8ddb7ea?w=1280&q=80",  # AMD/Intel CPU Die
+            "https://images.unsplash.com/photo-1587202372775-e229f172b9d7?w=1280&q=80",  # GPU Graphics Card
+            "https://images.unsplash.com/photo-1555680202-c86f0e12f086?w=1280&q=80",  # Motherboard Circuitry
+            "https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=1280&q=80"   # Hardware Tech Setup
+        ]
+        chosen_url = curated_urls[scene_idx % len(curated_urls)]
+        img_res = requests.get(chosen_url, headers=headers, timeout=8)
+        if img_res.status_code == 200 and len(img_res.content) > 10000:
+            with open(out_file, "wb") as f:
+                f.write(img_res.content)
+            print(f"[shorts] Downloaded curated photo for scene {scene_idx} ({len(img_res.content)} bytes)")
+            return out_file
+    except Exception as e:
+        print(f"[shorts] Direct download error: {e}")
+
+    # Fallback solid color frame
     cmd = [
         "ffmpeg", "-y", "-f", "lavfi",
         "-i", "color=c=0x0a0f1d:s=1080x1920:d=1",
@@ -99,23 +121,23 @@ def build_montage_short(idx: int, script_data: Dict[str, Any], audio_path: str, 
     scenes = script_data.get("scenes", [])
     if not scenes:
         scenes = [
-            {"spoken_line": full_text, "image_query": "Nvidia RTX graphics card leak render"}
+            {"spoken_line": full_text, "image_query": "graphics card gpu computer"}
         ]
 
-    # 1. Generate kinetic subtitle track
+    # 1. Generate kinetic subtitles
     _generate_kinetic_srt(srt_path, full_text, duration)
 
-    # 2. Source images for each scene
+    # 2. Source real images
     scene_images = []
     for s_idx, scene in enumerate(scenes):
-        query = scene.get("image_query", "modern computer hardware processor")
+        query = scene.get("image_query", "microchip hardware")
         img = fetch_real_scene_image(query, s_idx)
         scene_images.append(img)
 
     time_per_scene = duration / max(1, len(scene_images))
     total_frames = max(1, int(time_per_scene * 30))
 
-    # 3. Render individual animated clips (blurred 9:16 background + Ken Burns camera motion)
+    # 3. Build Ken Burns motion clips with blurred background canvas
     standardized_clips = []
     for i, img in enumerate(scene_images):
         clip_name = os.path.join(workspace, f"clip_{idx}_{i}.mp4")
@@ -128,7 +150,6 @@ def build_montage_short(idx: int, script_data: Dict[str, Any], audio_path: str, 
         else:
             zoom_expr = f"zoompan=z='max(1.18-0.0015*on,1.0)':d={total_frames}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=1080x1920:fps=30"
 
-        # Blurred vertical backdrop canvas + foreground centered motion
         vf = (
             f"[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=20:5[bg];"
             f"[0:v]scale=1080:1920:force_original_aspect_ratio=decrease[fg];"
@@ -147,22 +168,8 @@ def build_montage_short(idx: int, script_data: Dict[str, Any], audio_path: str, 
         res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         if os.path.exists(clip_name) and os.path.getsize(clip_name) > 0:
             standardized_clips.append(clip_name)
-        else:
-            print(f"[shorts] Clip {i} render failed: {res.stderr[-300:]}")
 
-    # Fallback to single solid clip if montage clips failed
-    if not standardized_clips:
-        fallback_clip = os.path.join(workspace, f"fallback_{idx}.mp4")
-        cmd = [
-            "ffmpeg", "-y", "-f", "lavfi",
-            "-i", f"color=c=0x0a0f1d:s=1080x1920:d={duration:.3f}:r=30",
-            "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p",
-            fallback_clip
-        ]
-        subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        standardized_clips.append(fallback_clip)
-
-    # 4. Playlist concatenation file
+    # 4. Playlist concatenation
     concat_txt = os.path.join(workspace, f"concat_{idx}.txt")
     with open(concat_txt, "w", encoding="utf-8") as f:
         for c in standardized_clips:
@@ -175,7 +182,6 @@ def build_montage_short(idx: int, script_data: Dict[str, Any], audio_path: str, 
         "drawtext=text='HARDWARE DISPATCH':fontcolor=0xfacc15:fontsize=44:x=(w-text_w)/2:y=270:box=1:boxcolor=0x1e293b@0.90:boxborderw=16"
     ]
 
-    # Add subtitle burning if SRT exists
     if os.path.exists(srt_path) and os.path.getsize(srt_path) > 0:
         escaped_srt = srt_path.replace("\\", "/").replace(":", "\\:")
         vf_filters.append(
@@ -193,13 +199,7 @@ def build_montage_short(idx: int, script_data: Dict[str, Any], audio_path: str, 
         "-shortest",
         output_mp4
     ]
-    print(f"[shorts] Assembling final Short to: {output_mp4}")
-    res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-    if res.returncode != 0:
-        print(f"[shorts] Assembly error: {res.stderr[-400:]}")
-        raise RuntimeError("Final FFmpeg render failed.")
-
-    print(f"[shorts] Video render completed successfully! File size: {os.path.getsize(output_mp4)} bytes")
+    subprocess.run(cmd, check=True)
     return output_mp4
 
 def cut_derived_shorts(channel_config: Dict[str, Any], script_data: Dict[str, Any], long_video: Any = None, *args, **kwargs) -> List[Dict[str, Any]]:
