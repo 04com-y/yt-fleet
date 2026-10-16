@@ -1,13 +1,15 @@
 import os
 import sys
 import json
-import random
 import requests
 import subprocess
 from typing import Dict, Any, List
 from duckduckgo_search import DDGS
 
 def _get_audio_duration(audio_path: str) -> float:
+    """Measures precise audio length in seconds using ffprobe."""
+    if not os.path.exists(audio_path) or os.path.getsize(audio_path) == 0:
+        return 30.0
     cmd = [
         "ffprobe", "-v", "error",
         "-show_entries", "format=duration",
@@ -16,13 +18,14 @@ def _get_audio_duration(audio_path: str) -> float:
     ]
     res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     try:
-        return float(res.stdout.strip())
+        val = float(res.stdout.strip())
+        return val if val > 0 else 30.0
     except Exception:
         return 30.0
 
 def _generate_kinetic_srt(srt_path: str, text: str, total_duration: float):
-    """Generates rapid 2-word subtitle cards styled for high retention."""
-    words = text.replace('"', '').replace("'", "").split()
+    """Generates rapid 2-word subtitle cards styled for mobile retention."""
+    words = text.replace('"', '').replace("'", "").replace("\n", " ").split()
     if not words:
         words = ["BREAKING", "TEXH", "UPDATE", "TODAY"]
 
@@ -49,15 +52,16 @@ def _generate_kinetic_srt(srt_path: str, text: str, total_duration: float):
             f.write(f"{idx}\n")
             f.write(f"{s_h:02d}:{s_m:02d}:{s_s:02d},{s_ms:03d} --> {e_h:02d}:{e_m:02d}:{e_s:02d},{e_ms:03d}\n")
             f.write(f"{chunk.upper()}\n\n")
+    print(f"[shorts] Kinetic SRT created at: {srt_path} ({chunk_count} word-cards)")
 
 def fetch_real_scene_image(query: str, scene_idx: int) -> str:
-    """Downloads high-res news photo for the exact scene query."""
+    """Downloads authentic news/leak photo for the exact scene query."""
     headers = {"User-Agent": "Mozilla/5.0"}
-    ddgs = DDGS()
-    out_file = f"scene_{scene_idx}.jpg"
+    out_file = os.path.abspath(f"scene_{scene_idx}.jpg")
 
-    print(f"[shorts] Sourcing real photo for: '{query}'")
+    print(f"[shorts] Searching web image for scene {scene_idx}: '{query}'")
     try:
+        ddgs = DDGS()
         results = list(ddgs.images(query, max_results=6))
         for item in results:
             img_url = item.get("image")
@@ -68,94 +72,114 @@ def fetch_real_scene_image(query: str, scene_idx: int) -> str:
                 if r.status_code == 200 and len(r.content) > 15000:
                     with open(out_file, "wb") as f:
                         f.write(r.content)
+                    print(f"[shorts] Downloaded valid photo: {out_file} ({len(r.content)} bytes)")
                     return out_file
             except Exception:
                 continue
     except Exception as e:
-        print(f"[shorts] Image query failed for '{query}': {e}")
+        print(f"[shorts] DuckDuckGo search error for '{query}': {e}")
 
-    # Fallback high-tech procedural frame if web query fails
+    # Solid modern cyber-canvas fallback if web image fails
+    print(f"[shorts] Generating high-tech procedural frame for scene {scene_idx}...")
     cmd = [
         "ffmpeg", "-y", "-f", "lavfi",
-        "-i", "color=c=0x0b132b:s=1080x1920:d=1",
+        "-i", "color=c=0x0a0f1d:s=1080x1920:d=1",
         "-vframes", "1", out_file
     ]
     subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     return out_file
 
 def build_montage_short(idx: int, script_data: Dict[str, Any], audio_path: str, channel_title: str) -> str:
+    workspace = os.getcwd()
     duration = _get_audio_duration(audio_path)
-    output_mp4 = f"output_short_{idx}.mp4"
-    srt_path = os.path.abspath(f"short_{idx}.srt")
+    output_mp4 = os.path.join(workspace, f"output_short_{idx}.mp4")
+    srt_path = os.path.join(workspace, f"short_{idx}.srt")
     
     full_text = script_data.get("body", "")
     scenes = script_data.get("scenes", [])
     if not scenes:
         scenes = [
-            {"spoken_line": full_text, "image_query": "Nvidia silicon microchip"}
+            {"spoken_line": full_text, "image_query": "Nvidia RTX graphics card leak render"}
         ]
 
-    # 1. Generate kinetic subtitles
+    # 1. Generate kinetic subtitle track
     _generate_kinetic_srt(srt_path, full_text, duration)
 
-    # 2. Download exact photos for each scene
+    # 2. Source images for each scene
     scene_images = []
     for s_idx, scene in enumerate(scenes):
-        query = scene.get("image_query", "microchip technology")
+        query = scene.get("image_query", "modern computer hardware processor")
         img = fetch_real_scene_image(query, s_idx)
         scene_images.append(img)
 
     time_per_scene = duration / max(1, len(scene_images))
+    total_frames = max(1, int(time_per_scene * 30))
 
-    # 3. Create animated Ken Burns clips with blurred background canvas
+    # 3. Render individual animated clips (blurred 9:16 background + Ken Burns camera motion)
     standardized_clips = []
     for i, img in enumerate(scene_images):
-        clip_name = f"kenburns_{idx}_{i}.mp4"
+        clip_name = os.path.join(workspace, f"clip_{idx}_{i}.mp4")
         mode = i % 3
 
         if mode == 0:
-            zoom_filter = f"zoompan=z='min(zoom+0.0016,1.20)':d={int(time_per_scene*30)}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=1080x1920"
+            zoom_expr = f"zoompan=z='min(zoom+0.0015,1.20)':d={total_frames}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=1080x1920:fps=30"
         elif mode == 1:
-            zoom_filter = f"zoompan=z='1.12':d={int(time_per_scene*30)}:x='if(eq(on,1),0,x+1.5)':y='ih/2-(ih/zoom/2)':s=1080x1920"
+            zoom_expr = f"zoompan=z='1.12':d={total_frames}:x='if(eq(on,1),0,x+1.2)':y='ih/2-(ih/zoom/2)':s=1080x1920:fps=30"
         else:
-            zoom_filter = f"zoompan=z='max(1.18-0.0016*on,1.0)':d={int(time_per_scene*30)}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=1080x1920"
+            zoom_expr = f"zoompan=z='max(1.18-0.0015*on,1.0)':d={total_frames}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=1080x1920:fps=30"
 
-        # Dual-layer filtergraph: blurred 9:16 background + animated sharp foreground
+        # Blurred vertical backdrop canvas + foreground centered motion
         vf = (
-            f"[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=25:5[bg];"
+            f"[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=20:5[bg];"
             f"[0:v]scale=1080:1920:force_original_aspect_ratio=decrease[fg];"
-            f"[bg][fg]overlay=(W-w)/2:(H-h)/2,{zoom_filter},crop=1080:1920,setsar=1,fps=30"
+            f"[bg][fg]overlay=(W-w)/2:(H-h)/2,{zoom_expr},crop=1080:1920,setsar=1,fps=30[outv]"
         )
 
         cmd = [
             "ffmpeg", "-y",
             "-loop", "1", "-i", img,
-            "-t", str(time_per_scene),
+            "-t", f"{time_per_scene:.3f}",
             "-filter_complex", vf,
+            "-map", "[outv]",
             "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p",
             clip_name
         ]
-        subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        if os.path.exists(clip_name):
+        res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        if os.path.exists(clip_name) and os.path.getsize(clip_name) > 0:
             standardized_clips.append(clip_name)
+        else:
+            print(f"[shorts] Clip {i} render failed: {res.stderr[-300:]}")
 
-    # 4. Playlist concatenation
-    concat_txt = f"concat_{idx}.txt"
+    # Fallback to single solid clip if montage clips failed
+    if not standardized_clips:
+        fallback_clip = os.path.join(workspace, f"fallback_{idx}.mp4")
+        cmd = [
+            "ffmpeg", "-y", "-f", "lavfi",
+            "-i", f"color=c=0x0a0f1d:s=1080x1920:d={duration:.3f}:r=30",
+            "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p",
+            fallback_clip
+        ]
+        subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        standardized_clips.append(fallback_clip)
+
+    # 4. Playlist concatenation file
+    concat_txt = os.path.join(workspace, f"concat_{idx}.txt")
     with open(concat_txt, "w", encoding="utf-8") as f:
         for c in standardized_clips:
-            f.write(f"file '{os.path.abspath(c)}'\n")
+            f.write(f"file '{c}'\n")
 
-    # 5. Composite Header Badges & Kinetic Burn-in Subtitles
-    rel_srt = f"short_{idx}.srt"
+    # 5. Composite branding badges & burn kinetic subtitles
     vf_filters = [
-        "drawbox=y=0:color=black@0.30:width=iw:height=ih:t=fill",
-        f"drawtext=text='⚡ {channel_title.upper()}':fontcolor=0x38bdf8:fontsize=36:x=(w-text_w)/2:y=180:box=1:boxcolor=0x0b132b@0.90:boxborderw=14",
+        "drawbox=y=0:color=black@0.35:width=iw:height=ih:t=fill",
+        f"drawtext=text='⚡ {channel_title.upper()}':fontcolor=0x38bdf8:fontsize=38:x=(w-text_w)/2:y=180:box=1:boxcolor=0x0b132b@0.90:boxborderw=14",
         "drawtext=text='HARDWARE DISPATCH':fontcolor=0xfacc15:fontsize=44:x=(w-text_w)/2:y=270:box=1:boxcolor=0x1e293b@0.90:boxborderw=16"
     ]
 
+    # Add subtitle burning if SRT exists
     if os.path.exists(srt_path) and os.path.getsize(srt_path) > 0:
+        escaped_srt = srt_path.replace("\\", "/").replace(":", "\\:")
         vf_filters.append(
-            f"subtitles={rel_srt}:force_style='FontName=DejaVu Sans,FontSize=24,Bold=1,PrimaryColour=&H0000FFFF,OutlineColour=&H00000000,BackColour=&H80000000,BorderStyle=3,Outline=2.5,Shadow=3,Alignment=2,MarginV=420'"
+            f"subtitles={escaped_srt}:force_style='FontName=DejaVu Sans,FontSize=24,Bold=1,PrimaryColour=&H0000FFFF,OutlineColour=&H00000000,BackColour=&H80000000,BorderStyle=3,Outline=2.5,Shadow=3,Alignment=2,MarginV=420'"
         )
 
     cmd = [
@@ -166,15 +190,22 @@ def build_montage_short(idx: int, script_data: Dict[str, Any], audio_path: str, 
         "-vf", ",".join(vf_filters),
         "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p",
         "-c:a", "aac", "-b:a", "192k",
+        "-shortest",
         output_mp4
     ]
-    subprocess.run(cmd, check=True)
+    print(f"[shorts] Assembling final Short to: {output_mp4}")
+    res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    if res.returncode != 0:
+        print(f"[shorts] Assembly error: {res.stderr[-400:]}")
+        raise RuntimeError("Final FFmpeg render failed.")
+
+    print(f"[shorts] Video render completed successfully! File size: {os.path.getsize(output_mp4)} bytes")
     return output_mp4
 
 def cut_derived_shorts(channel_config: Dict[str, Any], script_data: Dict[str, Any], long_video: Any = None, *args, **kwargs) -> List[Dict[str, Any]]:
     channel_name = channel_config.get("name", "Texh News")
-    title = script_data.get("title", "Breaking Tech")
-    audio_file = "audio_output.mp3"
+    title = script_data.get("title", "Breaking Hardware Leaks")
+    audio_file = os.path.abspath("audio_output.mp3")
 
     results = []
     try:
@@ -191,7 +222,7 @@ def cut_derived_shorts(channel_config: Dict[str, Any], script_data: Dict[str, An
             "video_path": video_path
         })
     except Exception as e:
-        print(f"[shorts] Video assembly failed: {e}")
+        print(f"[shorts] Video generation failed: {e}")
 
     return results
 
