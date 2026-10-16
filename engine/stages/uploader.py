@@ -2,7 +2,7 @@ import os
 import json
 import time
 from datetime import datetime, timedelta, timezone
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 from google.oauth2.credentials import Credentials
@@ -19,10 +19,9 @@ def get_youtube_client(channel_config: Dict[str, Any]):
     tokens_dict = json.loads(tokens_json)
     channel_slug = channel_config.get("slug", "ai-tools-en")
     
-    # Extract channel specific token or default
+    # Extract channel specific token or fallback to default
     channel_token = tokens_dict.get(channel_slug, tokens_dict.get("default", tokens_dict))
     
-    # If the token stored has credentials format
     creds_data = {
         "token": channel_token.get("access_token") if isinstance(channel_token, dict) else None,
         "refresh_token": channel_token.get("refresh_token") if isinstance(channel_token, dict) else channel_token,
@@ -36,11 +35,11 @@ def get_youtube_client(channel_config: Dict[str, Any]):
     return build("youtube", "v3", credentials=creds)
 
 def _upload_single_video(youtube, video_path: str, title: str, description: str, tags: List[str], is_short: bool = False) -> str:
-    """Performs resumable 4MB chunk upload to YouTube."""
+    """Performs resumable 4MB chunk upload to YouTube with quota limit protection."""
     if not os.path.exists(video_path):
         raise FileNotFoundError(f"Video file not found at: {video_path}")
 
-    # Delay publish by 1 hour so HD processing & Content ID checks finish
+    # Delay publish by 1 hour so HD processing & Content ID checks complete cleanly
     scheduled_time = (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat()
 
     full_title = f"{title[:90]} #Shorts" if is_short and "#Shorts" not in title else title[:100]
@@ -73,40 +72,46 @@ def _upload_single_video(youtube, video_path: str, title: str, description: str,
         print(f"[uploader] Upload success! Video ID: {video_id}")
         return video_id
     except Exception as e:
-        if "uploadLimitExceeded" in str(e):
-            print(f"[uploader] Daily YouTube upload quota reached for this channel! Saving video locally.")
-            return "QUOTA_PAUSED_24H"
+        err_msg = str(e)
+        if "uploadLimitExceeded" in err_msg:
+            print("[uploader] ⚠️ Daily YouTube upload quota reached for this channel! Skipping remaining uploads.")
+            return "QUOTA_LIMIT_EXCEEDED"
+        print(f"[uploader] Upload error: {err_msg}")
         raise e
 
-def upload_fleet_videos(channel_config: Dict[str, Any], long_video: Dict[str, Any], shorts: List[Dict[str, Any]], dry_run: bool = False) -> Dict[str, Any]:
-    """Matches the exact signature called by engine/run.py."""
+def upload_fleet_videos(channel_config: Dict[str, Any], long_video: Optional[Dict[str, Any]], shorts: List[Dict[str, Any]], dry_run: bool = False) -> Dict[str, Any]:
+    """Uploads produced videos or skips them cleanly when dry_run=True or quotas are hit."""
+    long_meta = long_video or {}
+    long_path = long_meta.get("video_path")
+
     if dry_run:
-        print("[uploader] DRY RUN: Skipping actual YouTube API uploads.")
+        print("[uploader] DRY RUN: Skipping YouTube uploads. Videos remain stored locally.")
         return {
             "status": "dry_run_success",
-            "long_form": long_video.get("video_path"),
+            "long_form": long_path,
             "shorts_count": len(shorts)
         }
 
     youtube = get_youtube_client(channel_config)
     results = {"long_form_id": None, "shorts_ids": []}
 
-    # 1. Upload Long-Form (16:9) Video
-    long_video_path = long_video.get("video_path")
-    long_title = long_video.get("title", "Autonomous Tech Dispatch")
-    if long_video_path and os.path.exists(long_video_path):
+    # 1. Upload Long-Form (16:9) Video if present
+    if long_path and os.path.exists(long_path):
+        long_title = long_meta.get("title", "Autonomous Tech Dispatch")
         v_id = _upload_single_video(
             youtube=youtube,
-            video_path=long_video_path,
+            video_path=long_path,
             title=long_title,
             description="Deep dive architectural analysis and developer breakdown.",
             tags=["AI", "Developer", "OpenSource", "Automation"],
             is_short=False
         )
         results["long_form_id"] = v_id
+        if v_id == "QUOTA_LIMIT_EXCEEDED":
+            return results
 
     # 2. Upload Derived 9:16 Shorts
-    for short_item in shorts:
+    for short_item in (shorts or []):
         s_path = short_item.get("video_path")
         s_title = short_item.get("title", "Quick Tech Insight")
         if s_path and os.path.exists(s_path):
@@ -119,7 +124,8 @@ def upload_fleet_videos(channel_config: Dict[str, Any], long_video: Dict[str, An
                 is_short=True
             )
             results["shorts_ids"].append(s_id)
-            # Sleep 5 seconds between uploads to respect API limits
+            if s_id == "QUOTA_LIMIT_EXCEEDED":
+                break
             time.sleep(5)
 
     return results
