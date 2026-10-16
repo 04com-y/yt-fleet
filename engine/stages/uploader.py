@@ -85,7 +85,7 @@ def upload_short(video_item: Dict[str, Any], channel_config: Dict[str, Any], dry
         return {"status": "error", "error": str(e)}
 
 def upload_fleet_videos(channel_config: Dict[str, Any], shorts_list: List[Dict[str, Any]], dry_run: bool = False, *args, **kwargs) -> List[Dict[str, Any]]:
-    """Primary upload function expected by engine/run.py."""
+    """Primary upload entry point expected by engine/run.py."""
     results = []
     if not shorts_list:
         print("[uploader] No shorts provided to upload.")
@@ -96,6 +96,6 @@ def upload_fleet_videos(channel_config: Dict[str, Any], shorts_list: List[Dict[s
         results.append(res)
     return results
 
-# Aliases for backwards compatibility
+# Aliases
 publish_shorts = upload_fleet_videos
 upload_videos = upload_fleet_videos
