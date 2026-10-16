@@ -8,7 +8,7 @@ def upload_short(video_item: Dict[str, Any], channel_config: Dict[str, Any], dry
     title = video_item.get("title", "Next-Gen Tech Leaks Revealed ⚡ #TexhNews")
     description = video_item.get(
         "seo_description",
-        "Daily breaking tech news and hardware leaks from Texh News.\n\n#TexhNews #Hardware #Shorts"
+        video_item.get("description", "Daily breaking tech news and hardware leaks from Texh News.\n\n#TexhNews #Hardware #Shorts")
     )
     tags = video_item.get("tags", ["Texh News", "Technology", "Hardware", "Shorts"])
     category_id = str(channel_config.get("category_id", "28"))
@@ -30,17 +30,15 @@ def upload_short(video_item: Dict[str, Any], channel_config: Dict[str, Any], dry
             "video_path": video_path
         }
 
-    # YouTube API Client Setup
     try:
         from googleapiclient.discovery import build
         from googleapiclient.http import MediaFileUpload
         from google.oauth2.credentials import Credentials
 
-        client_secrets_json = os.environ.get("YOUTUBE_CLIENT_SECRET")
-        token_json = os.environ.get("YOUTUBE_TOKEN_JSON")
+        token_json = os.environ.get("YT_TOKENS_JSON") or os.environ.get("YOUTUBE_TOKEN_JSON")
 
         if not token_json:
-            print("[uploader] Warning: YOUTUBE_TOKEN_JSON secret missing. Cannot complete upload.")
+            print("[uploader] Warning: YouTube token secret missing. Skipping upload.")
             return {"status": "skipped_no_token"}
 
         creds = Credentials.from_authorized_user_info(json.loads(token_json))
@@ -86,10 +84,18 @@ def upload_short(video_item: Dict[str, Any], channel_config: Dict[str, Any], dry
         print(f"[uploader] Upload execution failed: {e}")
         return {"status": "error", "error": str(e)}
 
-def publish_shorts(channel_config: Dict[str, Any], shorts_list: List[Dict[str, Any]], dry_run: bool = False) -> List[Dict[str, Any]]:
-    """Iterates through created Shorts and submits each for publishing."""
+def upload_fleet_videos(channel_config: Dict[str, Any], shorts_list: List[Dict[str, Any]], dry_run: bool = False, *args, **kwargs) -> List[Dict[str, Any]]:
+    """Primary upload function expected by engine/run.py."""
     results = []
+    if not shorts_list:
+        print("[uploader] No shorts provided to upload.")
+        return results
+
     for item in shorts_list:
         res = upload_short(item, channel_config, dry_run=dry_run)
         results.append(res)
     return results
+
+# Aliases for backwards compatibility
+publish_shorts = upload_fleet_videos
+upload_videos = upload_fleet_videos
