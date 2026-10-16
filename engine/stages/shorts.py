@@ -45,7 +45,7 @@ def synthesize_short_audio(text: str, lang: str, out_path: str):
         print(f"[shorts] TTS fallback for {out_path} ({e})")
         subprocess.run(f'ffmpeg -y -f lavfi -i "sine=frequency=520:duration=15" -c:a aac {out_path}', shell=True, check=True)
 
-def generate_shorts(channel_config: Dict[str, Any], script_data: Dict[str, Any]) -> List[Dict[str, Any]]:
+def generate_shorts(channel_config: Dict[str, Any], script_data: Dict[str, Any], *args, **kwargs) -> List[Dict[str, Any]]:
     channel_name = channel_config.get("name", "Channel")
     lang = channel_config.get("language", "en")
     scenes = script_data.get("scenes", [])
@@ -113,3 +113,7 @@ def generate_shorts(channel_config: Dict[str, Any], script_data: Dict[str, Any])
         })
 
     return shorts_output
+
+# Required by engine/run.py
+def cut_derived_shorts(channel_config: Dict[str, Any], script_data: Dict[str, Any], *args, **kwargs) -> List[Dict[str, Any]]:
+    return generate_shorts(channel_config, script_data, *args, **kwargs)
