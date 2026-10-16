@@ -30,53 +30,54 @@ def fetch_live_tech_radar() -> str:
                         else:
                             headlines.append(text)
         except Exception as e:
-            print(f"[scriptwriter] Feed error from {url}: {e}")
+            print(f"[research] Feed error from {url}: {e}")
 
     if not headlines:
         headlines = [
-            "Next-gen GPU leak reveals 32GB GDDR7 architecture jump",
-            "Apple M4 Ultra benchmark tests surface with dual-die packaging",
-            "Qualcomm announces Snapdragon X2 extreme efficiency compute node"
+            "Nvidia RTX 5090 leak reveals power draw can heat your entire living room",
+            "Apple announces new base storage that still insults your bank account",
+            "Intel claims new architectural efficiency node will save your electricity bill"
         ]
     return "\n- ".join(headlines[:6])
 
 def generate_script(channel_config: dict, language: str = "en") -> dict:
-    """Generates a 30s technical breakdown with scene-by-scene image directives and viral SEO."""
+    """Generates a funny, sarcastic, high-retention 30s tech short."""
     channel_name = channel_config.get("name", "Texh News")
     live_news = fetch_live_tech_radar()
     print(f"[scriptwriter] Live tech headlines gathered:\n{live_news}")
 
-    system_prompt = f"""You are a senior tech journalist writing an authoritative, rapid 30-second YouTube Short for '{channel_name}'.
-Pick ONE high-impact breaking story or upcoming hardware leak from these headlines:
+    system_prompt = f"""You are a sarcastic, witty tech journalist writing a funny 30-second YouTube Short for '{channel_name}' (think Fireship meets TechLinked humor).
+Roast ONE breaking hardware leak or tech story from these headlines:
 {live_news}
 
-CRITICAL RULES:
+TONE & STYLE:
+- Fast, punchy, self-aware, and funny. Roast the insane pricing, absurd wattage, or ridiculous product decisions.
 - Language: {language}
-- Total spoken script MUST be strictly between 60 and 70 words (exactly 28-32 seconds of speech).
-- NO fluff, NO greetings ("Hey guys"), NO clickbait ("earn money", "make passive income").
-- Include at least TWO concrete technical measurements (e.g., nanometers, GHz, GB, watts, or release dates).
-- Return STRICT JSON matching this schema:
+- Length: STRICTLY 60 to 70 words total (timed for 28-30 seconds).
+- NO boring intro, NO "Hey guys", NO generic advice. Jump straight into the joke and the leak.
+- Include real specs, but compare them to funny real-world things (e.g. wattage that cooks toast, VRAM you will never fill, pricing requiring a kidney).
 
+Return STRICT JSON matching this exact structure:
 {{
-  "title": "High-CTR title under 50 characters with 1 emoji and #TexhNews",
-  "seo_description": "Search-optimized 2-sentence summary followed by 4 hashtags and a pinned discussion question",
-  "tags": ["Exact Model", "Brand", "Hardware", "Texh News", "Shorts"],
+  "title": "Funny high-CTR title under 50 characters with 1 emoji and #TexhNews",
+  "seo_description": "Hilarious 2-sentence breakdown of why this tech is absurd.\n\nWould you sell your kidney for this? Drop your comments below 👇\n\n#TexhNews #TechRoast #Hardware #Shorts",
+  "tags": ["Tech Roast", "Hardware", "Funny Tech", "Texh News", "Shorts"],
   "scenes": [
     {{
-      "spoken_line": "Opening sentence hook introducing the upcoming device or breakthrough.",
-      "image_query": "Exact product name leak render or press photo"
+      "spoken_line": "Opening joke or sarcastic observation about the new device.",
+      "image_query": "gpu graphics card"
     }},
     {{
-      "spoken_line": "Technical specs, architecture details, and compute node breakdown.",
-      "image_query": "Silicon die shot or hardware component circuit close up"
+      "spoken_line": "The ridiculous spec reveal with a funny comparison.",
+      "image_query": "computer microchip silicon"
     }},
     {{
-      "spoken_line": "Cooling redesign, memory bandwidth, or power consumption specs.",
-      "image_query": "Device teardown or heatsink vapor chamber hardware"
+      "spoken_line": "Roasting the power draw, thermal meltdown, or price tag.",
+      "image_query": "computer cooling heatsink fan"
     }},
     {{
-      "spoken_line": "Release timeline, expected MSRP, and call to follow {channel_name} for updates.",
-      "image_query": "Brand official event keynote presentation stage"
+      "spoken_line": "Final punchline urging viewers to subscribe to Texh News before their wallet dies.",
+      "image_query": "technology data server motherboard"
     }}
   ]
 }}"""
@@ -117,25 +118,25 @@ CRITICAL RULES:
         data = json.loads(content)
     except Exception:
         data = {
-            "title": "Nvidia Just Leaked the RTX 5090? ⚡ #TexhNews",
-            "seo_description": f"Leaked benchmarks reveal the upcoming Nvidia flagship GPU architecture with 32GB GDDR7 memory.\n\nAre you upgrading this year? Drop your thoughts below 👇\n\n#TexhNews #Nvidia #Hardware #Shorts",
-            "tags": ["RTX 5090", "Nvidia", "GPU Leak", "Texh News", "Shorts"],
+            "title": "Nvidia Wants Your Entire Bank Account? 💀 #TexhNews",
+            "seo_description": "Nvidia's new leak proves GPUs are no longer gaming cards, they are personal home space heaters.\n\nAre you trading your car for this? Comment below 👇\n\n#TexhNews #Nvidia #Hardware #Shorts",
+            "tags": ["RTX 5090", "Nvidia", "Hardware Roast", "Texh News", "Shorts"],
             "scenes": [
                 {
-                    "spoken_line": "Leaked engineering benchmarks for Nvidia's next-gen flagship GPU just surfaced online.",
-                    "image_query": "Nvidia RTX graphics card hardware render"
+                    "spoken_line": "Nvidia just looked at your monthly electric bill and decided it was way too low.",
+                    "image_query": "graphics card gpu computer"
                 },
                 {
-                    "spoken_line": "Built on a custom three nanometer node, the die features over twenty-four thousand CUDA cores.",
-                    "image_query": "silicon microchip wafer die shot macro"
+                    "spoken_line": "Leaked specs show the new flagship draws six hundred watts, officially doubling as a high-end pizza oven.",
+                    "image_query": "computer microchip motherboard"
                 },
                 {
-                    "spoken_line": "Early leaks confirm thirty-two gigabytes of GDDR7 memory with a massive dual-slot vapor chamber.",
-                    "image_query": "GPU vapor chamber heatsink cooler"
+                    "spoken_line": "With thirty-two gigabytes of VRAM, you can finally run Minecraft shaders without setting your carpet on fire.",
+                    "image_query": "computer heatsink cooler fan"
                 },
                 {
-                    "spoken_line": f"Official retail launch is scheduled for early next quarter. Follow {channel_name} for daily hardware updates.",
-                    "image_query": "Jensen Huang Nvidia keynote presentation"
+                    "spoken_line": f"Expected price? One kidney and your car keys. Subscribe to {channel_name} so you can cry with us daily.",
+                    "image_query": "technology hardware computer server"
                 }
             ]
         }
