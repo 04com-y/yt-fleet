@@ -114,13 +114,10 @@ def build_montage_short(idx: int, script_data: Dict[str, Any], audio_path: str, 
         mode = i % 3
 
         if mode == 0:
-            # Center push-in zoom
             zoom_filter = f"zoompan=z='min(zoom+0.0016,1.20)':d={int(time_per_scene*30)}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=1080x1920"
         elif mode == 1:
-            # Horizontal drift pan
             zoom_filter = f"zoompan=z='1.12':d={int(time_per_scene*30)}:x='if(eq(on,1),0,x+1.5)':y='ih/2-(ih/zoom/2)':s=1080x1920"
         else:
-            # Smooth pull-back reveal
             zoom_filter = f"zoompan=z='max(1.18-0.0016*on,1.0)':d={int(time_per_scene*30)}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=1080x1920"
 
         # Dual-layer filtergraph: blurred 9:16 background + animated sharp foreground
