@@ -40,7 +40,7 @@ def fetch_tech_radar_feed() -> list:
     return headlines[:6]
 
 def run_research(channel_config: Dict[str, Any]) -> Dict[str, Any]:
-    """Gathers real-time tech radar data for the channel without crashing on missing keys."""
+    """Gathers real-time tech radar data for the channel with singular 'topic' for ledger."""
     name = channel_config.get("name", "Texh News")
     slug = channel_config.get("slug", "ai-tools-en")
     print(f"[research] Gathering trends for {name} ({slug})...")
@@ -48,9 +48,12 @@ def run_research(channel_config: Dict[str, Any]) -> Dict[str, Any]:
     headlines = fetch_tech_radar_feed()
     print(f"[research] Gathered {len(headlines)} headlines.")
 
+    primary_topic = headlines[0] if headlines else "Next-Gen Silicon Leap"
+
     return {
         "channel": name,
         "slug": slug,
+        "topic": primary_topic,       # Provided for ledger collision checks
         "topics": headlines,
         "radar": "\n- ".join(headlines)
     }
