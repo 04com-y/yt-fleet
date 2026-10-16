@@ -2,6 +2,7 @@ import os
 import json
 import xml.etree.ElementTree as ET
 import requests
+from typing import Dict, Any
 
 def fetch_live_tech_radar() -> str:
     """Scrapes breaking hardware announcements, upcoming leaks, and silicon news."""
@@ -13,7 +14,6 @@ def fetch_live_tech_radar() -> str:
     ]
     headlines = []
     headers = {"User-Agent": "Mozilla/5.0"}
-    
     radar_keywords = ["leak", "unveil", "launch", "specs", "benchmark", "reveal", "upcoming", "next-gen", "chip", "gpu", "m4", "rtx"]
 
     for url in feeds:
@@ -30,7 +30,7 @@ def fetch_live_tech_radar() -> str:
                         else:
                             headlines.append(text)
         except Exception as e:
-            print(f"[research] Feed error from {url}: {e}")
+            print(f"[scriptwriter] Feed error from {url}: {e}")
 
     if not headlines:
         headlines = [
