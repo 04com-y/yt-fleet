@@ -1,131 +1,95 @@
 import os
+import sys
 import json
-import time
-from datetime import datetime, timedelta, timezone
-from typing import Dict, Any, List, Optional
-from googleapiclient.discovery import build
-from googleapiclient.http import MediaFileUpload
-from google.oauth2.credentials import Credentials
+from typing import Dict, Any, List
 
-def get_youtube_client(channel_config: Dict[str, Any]):
-    """Authenticate YouTube Data API using GitHub Secrets environment variables."""
-    tokens_json = os.environ.get("YT_TOKENS_JSON")
-    client_id = os.environ.get("YT_CLIENT_ID")
-    client_secret = os.environ.get("YT_CLIENT_SECRET")
+def upload_short(video_item: Dict[str, Any], channel_config: Dict[str, Any], dry_run: bool = False) -> Dict[str, Any]:
+    """Uploads a generated Short to YouTube with viral title, description, and tags."""
+    title = video_item.get("title", "Next-Gen Tech Leaks Revealed ⚡ #TexhNews")
+    description = video_item.get(
+        "seo_description",
+        "Daily breaking tech news and hardware leaks from Texh News.\n\n#TexhNews #Hardware #Shorts"
+    )
+    tags = video_item.get("tags", ["Texh News", "Technology", "Hardware", "Shorts"])
+    category_id = str(channel_config.get("category_id", "28"))
+    video_path = video_item.get("video_path")
 
-    if not tokens_json or not client_id or not client_secret:
-        raise ValueError("Missing YT_TOKENS_JSON, YT_CLIENT_ID, or YT_CLIENT_SECRET in environment!")
+    print(f"\n[uploader] ===== PREPARING YOUTUBE UPLOAD =====")
+    print(f"[uploader] Title:       {title}")
+    print(f"[uploader] Video File:  {video_path}")
+    print(f"[uploader] Category ID: {category_id}")
+    print(f"[uploader] Tags:        {', '.join(tags)}")
+    print(f"[uploader] Dry Run:     {dry_run}")
+    print(f"[uploader] =====================================\n")
 
-    tokens_dict = json.loads(tokens_json)
-    channel_slug = channel_config.get("slug", "ai-tools-en")
-    
-    # Extract channel specific token or fallback to default
-    channel_token = tokens_dict.get(channel_slug, tokens_dict.get("default", tokens_dict))
-    
-    creds_data = {
-        "token": channel_token.get("access_token") if isinstance(channel_token, dict) else None,
-        "refresh_token": channel_token.get("refresh_token") if isinstance(channel_token, dict) else channel_token,
-        "token_uri": "https://oauth2.googleapis.com/token",
-        "client_id": client_id,
-        "client_secret": client_secret,
-        "scopes": ["https://www.googleapis.com/auth/youtube.upload"]
-    }
-    
-    creds = Credentials.from_authorized_user_info(creds_data)
-    return build("youtube", "v3", credentials=creds)
-
-def _upload_single_video(youtube, video_path: str, title: str, description: str, tags: List[str], is_short: bool = False) -> str:
-    """Performs resumable 4MB chunk upload to YouTube with quota limit protection."""
-    if not os.path.exists(video_path):
-        raise FileNotFoundError(f"Video file not found at: {video_path}")
-
-    # Delay publish by 1 hour so HD processing & Content ID checks complete cleanly
-    scheduled_time = (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat()
-
-    full_title = f"{title[:90]} #Shorts" if is_short and "#Shorts" not in title else title[:100]
-    
-    body = {
-        "snippet": {
-            "title": full_title,
-            "description": description + "\n\n---\nAutomated technical analysis and educational synthesis.",
-            "tags": tags + (["Shorts", "YouTubeShorts"] if is_short else []),
-            "categoryId": "28"  # Science & Technology
-        },
-        "status": {
-            "privacyStatus": "private",
-            "publishAt": scheduled_time,
-            "selfDeclaredMadeForKids": False
+    if dry_run or not video_path or not os.path.exists(video_path):
+        print(f"[uploader] Dry run active or missing file. Skipping live API call.")
+        return {
+            "status": "dry_run_success",
+            "title": title,
+            "video_path": video_path
         }
-    }
 
-    print(f"[uploader] Uploading {'SHORT' if is_short else 'LONG-FORM'}: '{full_title}' ({video_path})...")
-    media = MediaFileUpload(video_path, chunksize=4 * 1024 * 1024, resumable=True, mimetype="video/mp4")
-    request = youtube.videos().insert(part="snippet,status", body=body, media_body=media)
-
-    response = None
+    # YouTube API Client Setup
     try:
+        from googleapiclient.discovery import build
+        from googleapiclient.http import MediaFileUpload
+        from google.oauth2.credentials import Credentials
+
+        client_secrets_json = os.environ.get("YOUTUBE_CLIENT_SECRET")
+        token_json = os.environ.get("YOUTUBE_TOKEN_JSON")
+
+        if not token_json:
+            print("[uploader] Warning: YOUTUBE_TOKEN_JSON secret missing. Cannot complete upload.")
+            return {"status": "skipped_no_token"}
+
+        creds = Credentials.from_authorized_user_info(json.loads(token_json))
+        youtube = build("youtube", "v3", credentials=creds)
+
+        body = {
+            "snippet": {
+                "title": title[:100],
+                "description": description,
+                "tags": tags,
+                "categoryId": category_id
+            },
+            "status": {
+                "privacyStatus": "public",
+                "selfDeclaredMadeForKids": False
+            }
+        }
+
+        media = MediaFileUpload(
+            video_path,
+            chunksize=-1,
+            resumable=True,
+            mimetype="video/mp4"
+        )
+
+        request = youtube.videos().insert(
+            part="snippet,status",
+            body=body,
+            media_body=media
+        )
+
+        response = None
         while response is None:
             status, response = request.next_chunk()
             if status:
                 print(f"[uploader] Upload progress: {int(status.progress() * 100)}%")
+
         video_id = response.get("id")
-        print(f"[uploader] Upload success! Video ID: {video_id}")
-        return video_id
+        print(f"[uploader] Video uploaded successfully: https://youtube.com/shorts/{video_id}")
+        return {"status": "uploaded", "video_id": video_id}
+
     except Exception as e:
-        err_msg = str(e)
-        if "uploadLimitExceeded" in err_msg:
-            print("[uploader] ⚠️ Daily YouTube upload quota reached for this channel! Skipping remaining uploads.")
-            return "QUOTA_LIMIT_EXCEEDED"
-        print(f"[uploader] Upload error: {err_msg}")
-        raise e
+        print(f"[uploader] Upload execution failed: {e}")
+        return {"status": "error", "error": str(e)}
 
-def upload_fleet_videos(channel_config: Dict[str, Any], long_video: Optional[Dict[str, Any]], shorts: List[Dict[str, Any]], dry_run: bool = False) -> Dict[str, Any]:
-    """Uploads produced videos or skips them cleanly when dry_run=True or quotas are hit."""
-    long_meta = long_video or {}
-    long_path = long_meta.get("video_path")
-
-    if dry_run:
-        print("[uploader] DRY RUN: Skipping YouTube uploads. Videos remain stored locally.")
-        return {
-            "status": "dry_run_success",
-            "long_form": long_path,
-            "shorts_count": len(shorts)
-        }
-
-    youtube = get_youtube_client(channel_config)
-    results = {"long_form_id": None, "shorts_ids": []}
-
-    # 1. Upload Long-Form (16:9) Video if present
-    if long_path and os.path.exists(long_path):
-        long_title = long_meta.get("title", "Autonomous Tech Dispatch")
-        v_id = _upload_single_video(
-            youtube=youtube,
-            video_path=long_path,
-            title=long_title,
-            description="Deep dive architectural analysis and developer breakdown.",
-            tags=["AI", "Developer", "OpenSource", "Automation"],
-            is_short=False
-        )
-        results["long_form_id"] = v_id
-        if v_id == "QUOTA_LIMIT_EXCEEDED":
-            return results
-
-    # 2. Upload Derived 9:16 Shorts
-    for short_item in (shorts or []):
-        s_path = short_item.get("video_path")
-        s_title = short_item.get("title", "Quick Tech Insight")
-        if s_path and os.path.exists(s_path):
-            s_id = _upload_single_video(
-                youtube=youtube,
-                video_path=s_path,
-                title=s_title,
-                description="Quick technical insight from our weekly deep dive. #Shorts",
-                tags=["AI", "Shorts", "Tech", "Coding"],
-                is_short=True
-            )
-            results["shorts_ids"].append(s_id)
-            if s_id == "QUOTA_LIMIT_EXCEEDED":
-                break
-            time.sleep(5)
-
+def publish_shorts(channel_config: Dict[str, Any], shorts_list: List[Dict[str, Any]], dry_run: bool = False) -> List[Dict[str, Any]]:
+    """Iterates through created Shorts and submits each for publishing."""
+    results = []
+    for item in shorts_list:
+        res = upload_short(item, channel_config, dry_run=dry_run)
+        results.append(res)
     return results
