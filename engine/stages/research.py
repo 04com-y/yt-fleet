@@ -1,9 +1,9 @@
 import os
 import xml.etree.ElementTree as ET
 import requests
-from typing import Dict, Any
+from typing import Dict, Any, List
 
-def fetch_tech_radar_feed() -> list:
+def fetch_tech_radar_feed() -> List[str]:
     """Scrapes top headlines from hardware/tech RSS feeds."""
     feeds = [
         "https://www.theverge.com/rss/index.xml",
@@ -40,7 +40,7 @@ def fetch_tech_radar_feed() -> list:
     return headlines[:6]
 
 def run_research(channel_config: Dict[str, Any]) -> Dict[str, Any]:
-    """Gathers real-time tech radar data for the channel with singular 'topic' for ledger."""
+    """Gathers real-time tech radar data; provides both 'topic' and 'topics' to prevent KeyErrors."""
     name = channel_config.get("name", "Texh News")
     slug = channel_config.get("slug", "ai-tools-en")
     print(f"[research] Gathering trends for {name} ({slug})...")
