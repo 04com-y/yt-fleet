@@ -5,7 +5,7 @@ import edge_tts
 from typing import Dict, Any
 
 async def _synthesize_edge_voice(text: str, voice: str, output_path: str):
-    """Generates soft, natural neural audio with an +8% cadence boost for fast pacing."""
+    """Generates soft, natural neural audio with an +8% cadence boost for active pacing."""
     communicate = edge_tts.Communicate(text, voice, rate="+8%")
     await communicate.save(output_path)
 
@@ -29,5 +29,5 @@ def synthesize_audio(channel_config: Dict[str, Any], script_data: Dict[str, Any]
 
     return output_path
 
-# Alias so both function names work interchangeably
+# Export alias so any caller succeeds
 generate_voiceover = synthesize_audio
