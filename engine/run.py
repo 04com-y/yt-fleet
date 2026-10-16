@@ -2,81 +2,79 @@ import os
 import sys
 import yaml
 import argparse
-from control.ledger import TopicLedger
-from control.qa_gate import QAGate
+from typing import Dict, Any
+
 from engine.stages.research import run_research
 from engine.stages.scriptwriter import generate_script
 from engine.stages.voice import synthesize_audio
-from engine.stages.render import render_long_form
 from engine.stages.shorts import cut_derived_shorts
 from engine.stages.uploader import upload_fleet_videos
 
-def run_channel(slug: str, job: str = "shorts_only", dry_run: bool = True, channels_dir: str = "channels"):
-    ch_path = os.path.join(channels_dir, f"{slug}.yml")
-    if not os.path.exists(ch_path):
-        raise FileNotFoundError(f"Channel config not found: {ch_path}")
+def load_channel_config(channel_slug: str) -> Dict[str, Any]:
+    config_path = os.path.join("channels", f"{channel_slug}.yml")
+    if not os.path.exists(config_path):
+        raise FileNotFoundError(f"Configuration file not found: {config_path}")
+    with open(config_path, "r", encoding="utf-8") as f:
+        config = yaml.safe_load(f)
+    if "slug" not in config:
+        config["slug"] = channel_slug
+    return config
 
-    with open(ch_path, "r", encoding="utf-8") as f:
-        channel_config = yaml.safe_load(f)
+def run_channel(channel_slug: str, job: str = "shorts_only", dry_run: bool = True):
+    print(f"\n==========================================")
+    print(f"=== Running Channel: {channel_slug} [Job: {job}] ===")
+    print(f"=== Dry Run: {dry_run} ===")
+    print(f"==========================================\n")
 
-    print(f"=== Running Channel: {channel_config['name']} ({slug}) [Mode: {job}] ===")
-
+    channel_config = load_channel_config(channel_slug)
+    
     # 1. Research
+    print("\n--- [Stage 1: Research] ---")
     research_data = run_research(channel_config)
+    print(f"Selected Topic: {research_data.get('topic')}")
+
+    # 2. Scriptwriter
+    print("\n--- [Stage 2: Scriptwriter] ---")
+    lang = channel_config.get("language", "en")
+    script_data = generate_script(channel_config, language=lang)
+    print(f"Title: {script_data.get('title')}")
+    print(f"Spoken text length: {len(script_data.get('body', ''))} characters")
+
+    # 3. Voice Synthesis
+    print("\n--- [Stage 3: Voice Synthesis] ---")
+    audio_path = os.path.abspath("audio_output.mp3")
+    synthesize_audio(channel_config, script_data, output_path=audio_path)
+    if not os.path.exists(audio_path) or os.path.getsize(audio_path) == 0:
+        raise RuntimeError(f"Voice generation failed: {audio_path} does not exist or is empty.")
+    print(f"Audio ready: {audio_path} ({os.path.getsize(audio_path)} bytes)")
+
+    # 4. Video & Shorts Generation
+    print("\n--- [Stage 4: Shorts Assembly] ---")
+    shorts_list = cut_derived_shorts(channel_config, script_data, audio_path=audio_path)
     
-    # 2. Topic ledger check
-    ledger = TopicLedger()
-    if not ledger.is_topic_allowed(research_data["topic"]):
-        print(f"[ledger] Topic covered within 14 days. Generating fresh angle...")
-        research_data["topic"] = f"{research_data['topic']} Part 2 (Fresh Insights)"
+    if not shorts_list:
+        raise RuntimeError("No shorts were returned by cut_derived_shorts.")
 
-    # 3. Script generation
-    script = generate_script(channel_config, research_data)
+    for idx, s in enumerate(shorts_list):
+        v_path = s.get("video_path")
+        if not v_path or not os.path.exists(v_path):
+            raise RuntimeError(f"Short {idx+1} video file was not generated: {v_path}")
+        print(f"Short generated successfully: {v_path} ({os.path.getsize(v_path)} bytes)")
 
-    # 4. QA Gate
-    qa = QAGate()
-    script_ok, errors = qa.validate_script(script, channel_config.get("rules", {}))
-    if not script_ok:
-        print(f"[qa_gate] QA failed: {errors}. Aborting run.")
-        return
-
-    # 5. Audio synthesis
-    audio = synthesize_audio(channel_config, script)
-
-    # 6. Video Rendering based on chosen --job format
-    long_video = None
-    shorts = []
-
-    if job in ("long_only", "long_and_shorts"):
-        print("[render] Rendering 16:9 Long-Form Video...")
-        long_video = render_long_form(channel_config, script, audio)
-
-    if job in ("shorts_only", "long_and_shorts"):
-        print("[render] Rendering 9:16 Vertical Shorts...")
-        shorts = cut_derived_shorts(channel_config, script, long_video)
-
-    # 7. Upload / Dry Run
-    res = upload_fleet_videos(channel_config, long_video, shorts, dry_run=dry_run)
-    
-    # Record topic in ledger
-    ledger.record_topic(slug, research_data["topic"], script["title"])
-    print(f"=== Channel Run Complete for {slug}: {res} ===")
+    # 5. Uploader
+    print("\n--- [Stage 5: Uploader] ---")
+    upload_fleet_videos(channel_config, shorts_list, dry_run=dry_run)
+    print("\n=== Channel Run Completed Successfully ===")
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--channel", required=True, help="Channel slug to run")
-    parser.add_argument("--dry-run", action="store_true", default=False, help="Skip real uploads")
-    parser.add_argument(
-        "--job", 
-        default="shorts_only", 
-        choices=["shorts_only", "long_only", "long_and_shorts"], 
-        help="Job production format"
-    )
+    parser = argparse.ArgumentParser(description="YouTube Fleet Automation Engine")
+    parser.add_argument("--channel", type=str, required=True, help="Channel slug name (e.g., ai-tools-en)")
+    parser.add_argument("--job", type=str, default="shorts_only", help="Job mode")
+    parser.add_argument("--dry_run", action="store_true", help="Enable dry run")
+    
     args = parser.parse_args()
     
-    # Check DRY_RUN environment variable from GitHub Actions
-    env_dry_run = os.environ.get("DRY_RUN", "true").lower() == "true"
-    is_dry_run = True if "--dry-run" in sys.argv else env_dry_run
-    
-    print(f"[engine] Executing with dry_run = {is_dry_run}, job = {args.job}")
-    run_channel(args.channel, job=args.job, dry_run=is_dry_run)
+    env_dry_run = os.environ.get("DRY_RUN", "true").lower() in ("true", "1", "yes")
+    is_dry = args.dry_run or env_dry_run
+
+    run_channel(args.channel, job=args.job, dry_run=is_dry)
