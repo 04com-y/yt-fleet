@@ -1,4 +1,5 @@
 name: "Texh News"
+slug: "ai-tools-en"
 handle: "@TexhNewsDispatch"
 language: "en"
 voice: "en-US-JennyNeural"
